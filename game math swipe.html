@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Math Swipe Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+  <style>
+    /* Custom styles to override or extend Tailwind, and for specific animations */
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif; /* Using Inter font as per instructions */
+      background: linear-gradient(to right, #43cea2, #185a9d); /* Initial gradient background */
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      position: relative;
+      transition: background-color 0.4s ease; /* Smooth transition for background color changes */
+    }
+
+    /* Background flash for correct answer */
+    body.correct {
+      background-color: #2ecc71 !important; /* Green */
+    }
+
+    /* Background flash for wrong answer */
+    body.wrong {
+      background-color: #e74c3c !important; /* Red */
+    }
+
+    /* Main heading style */
+    h1 {
+      margin-top: 40px;
+      color: white;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Question text style */
+    #question {
+      color: white;
+      font-size: 28px;
+      margin-top: 10px;
+      margin-bottom: 40px;
+      z-index: 2;
+      position: relative;
+      transition: transform 0.2s ease-out; /* Smooth scale transition for question text */
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Container for the draggable card */
+    .card-container {
+      position: relative;
+      width: 300px; /* Fixed width for the card area */
+      height: 400px; /* Fixed height for the card area */
+      z-index: 2;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Style for the draggable answer card */
+    .card {
+      width: 100%;
+      height: 100px;
+      background: rgba(255, 255, 255, 0.15); /* Translucent background (glassmorphism effect) */
+      border-radius: 20px; /* Rounded corners */
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); /* Shadow for depth */
+      backdrop-filter: blur(8px); /* Blur effect behind the card */
+      -webkit-backdrop-filter: blur(8px); /* Webkit compatibility */
+      border: 1px solid rgba(255, 255, 255, 0.18); /* Subtle border */
+      position: absolute; /* Absolute positioning for drag functionality */
+      top: 50%; /* Center vertically within card-container */
+      left: 50%; /* Center horizontally within card-container */
+      transform: translate(-50%, -50%); /* Adjust for true centering */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+      color: white;
+      cursor: grab; /* Cursor indicates draggable */
+      transition: transform 0.3s ease, opacity 0.3s ease; /* Smooth transitions for movement and fade */
+      z-index: 1;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Score display style */
+    #score {
+      color: white;
+      position: fixed; /* Fixed position at the bottom */
+      bottom: 20px;
+      font-size: 18px;
+      z-index: 10;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Difficulty selector styling */
+    #difficulty-selector-start { /* Specific ID for start screen selector */
+      margin-bottom: 20px;
+      padding: 8px 15px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      font-size: 16px;
+      cursor: pointer;
+      outline: none;
+      -webkit-appearance: none; /* Remove default dropdown arrow for better custom styling */
+      -moz-appearance: none;
+      appearance: none;
+      background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13.2-6.4H18.6c-5%200-9.3%201.8-13.2%206.4-3.9%204.6-5.8%2010.5-5.8%2017.4v141.6c0%206.9%201.9%2012.8%205.8%2017.4%203.9%204.6%208.2%206.4%2013.2%206.4h255.2c5%200%209.3-1.8%2013.2-6.4%203.9-4.6%205.8-10.5%205.8-17.4V86.8c0-6.9-1.9-12.8-5.8-17.4z%22%2F%3E%3C%2Fsvg%3E'); /* Custom dropdown arrow */
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 12px;
+    }
+
+    #difficulty-selector-start option {
+      background-color: #185a9d; /* Darker background for options */
+      color: white;
+    }
+
+    /* Timer bar container */
+    #timer-bar-container {
+      position: fixed;
+      bottom: 60px; /* Position above the score */
+      width: 80%; /* Adjust width as needed */
+      max-width: 400px; /* Max width for larger screens */
+      height: 15px; /* Height of the bar */
+      background-color: rgba(255, 255, 255, 0.3); /* Semi-transparent background for the bar track */
+      border-radius: 8px; /* Rounded corners */
+      overflow: hidden; /* Ensure the inner bar stays within bounds */
+      z-index: 9;
+    }
+
+    /* Actual timer bar that shrinks */
+    #timer-bar {
+      height: 100%;
+      width: 100%; /* Starts full */
+      background-color: #e74c3c; /* Red color */
+      border-radius: 8px; /* Rounded corners */
+      transition: width linear; /* Smooth transition for shrinking */
+    }
+
+    /* Start Screen styles */
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to right, #43cea2, #185a9d); /* Same as body background */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20; /* Ensure it's on top */
+      color: white;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    #start-screen h1 {
+      margin-bottom: 30px;
+      font-size: 3em;
+    }
+
+    #start-button {
+      padding: 15px 30px;
+      font-size: 1.5em;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 15px;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      margin-top: 30px;
+    }
+
+    #start-button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    #start-button:active {
+      transform: translateY(0);
+    }
+
+    /* Utility class to hide elements */
+    .hidden {
+      display: none !important;
+    }
+
+    /* Animasi untuk Jawaban Salah (Goyang) */
+    @keyframes wrong-shake {
+      0%, 100% { transform: translate(-50%, -50%) translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translate(-50%, -50%) translateX(-10px); }
+      20%, 40%, 60%, 80% { transform: translate(-50%, -50%) translateX(10px); }
+    }
+
+    /* Kelas yang akan diterapkan pada kartu untuk memicu animasi */
+    .card.wrong-anim {
+      animation: wrong-shake 0.4s ease-in-out; /* Animasi goyang berlangsung 0.4 detik */
+    }
+
+    /* Style for the back to menu button (now 'X' button) */
+    #back-button {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      /* Adjusted padding for 'X' to make it more compact */
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%; /* Make it circular for an 'X' button */
+      color: white;
+      font-size: 18px; /* Larger font for 'X' */
+      font-weight: bold; /* Make 'X' bold */
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      z-index: 15; /* Ensure it's above game elements but below start screen */
+      display: flex; /* Use flex to center the 'X' */
+      align-items: center;
+      justify-content: center;
+      width: 40px; /* Fixed width and height for circular shape */
+      height: 40px;
+    }
+
+    #back-button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    /* Lives display styling */
+    #lives-display {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 24px; /* Larger font for emojis */
+      z-index: 15;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Game Over Screen styling */
+    #game-over-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to right, #43cea2, #185a9d); /* Same as body background */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 25; /* Above everything else */
+      color: white;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      text-align: center;
+    }
+
+    #game-over-screen h2 {
+      font-size: 3.5em;
+      margin-bottom: 20px;
+    }
+
+    #final-score {
+      font-size: 2.5em;
+      margin-bottom: 40px;
+    }
+
+    #game-over-menu-button {
+      padding: 15px 30px;
+      font-size: 1.5em;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 15px;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    #game-over-menu-button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    #game-over-menu-button:active {
+      transform: translateY(0);
+    }
+
+    /* Instructions styling */
+    .instructions {
+        margin-top: 20px;
+        font-size: 1.1em;
+        text-align: center;
+        max-width: 80%;
+        line-height: 1.5;
+    }
+
+    /* Attribution styling */
+    .attribution {
+        position: absolute;
+        bottom: 20px;
+        font-size: 0.9em;
+        color: rgba(255, 255, 255, 0.7);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="start-screen">
+    <h1>Tantangan Matematika</h1>
+   <h4> By M. Ruhul Jihad</h4>
+   <br></br>
+    <p class="text-xl">Pilih Tingkat Kesulitan:</p>
+    <select id="difficulty-selector-start" class="mt-4 mb-8 p-3 rounded-lg bg-white bg-opacity-20 text-white border border-white border-opacity-30 text-lg cursor-pointer">
+      <option value="easy" class="bg-gray-800 text-white">Mudah</option>
+      <option value="medium" class="bg-gray-800 text-white">Sedang</option>
+      <option value="hard" class="bg-gray-800 text-white">Sulit</option>
+    </select>
+    <button id="start-button">Mulai Game</button>
+    <div class="instructions">
+        <p>Geser kartu ke <span style="font-weight: bold; color: #2ecc71;">KANAN</span> untuk jawaban <span style="font-weight: bold; color: #2ecc71;">BENAR</span>.</p>
+        <p>Geser kartu ke <span style="font-weight: bold; color: #e74c3c;">KIRI</span> untuk jawaban <span style="font-weight: bold; color: #e74c3c;">SALAH</span>.</p>
+        <p>Hati Anda akan berkurang jika salah. Game Over jika hati habis!</p>
+    </div>
+    <div class="attribution">Game by M. Ruhul Jihad</div>
+  </div>
+
+  <h1 id="game-title" class="hidden">Tantangan Matematika</h1>
+  <div id="question" class="hidden"></div>
+  <div class="card-container hidden" id="card-container"></div>
+  <div id="score" class="hidden">Skor: 0</div>
+  <div id="timer-bar-container" class="hidden">
+    <div id="timer-bar"></div>
+  </div>
+  <button id="back-button" class="hidden">X</button>
+  <div id="lives-display" class="hidden"></div>
+
+  <div id="game-over-screen" class="hidden">
+    <h2>Game Over!</h2>
+    <p id="final-score">Skor Akhir: 0</p>
+    <button id="game-over-menu-button">Kembali ke Menu</button>
+  </div>
+
+
+  <script>
+    // Get references to DOM elements
+    const startScreen = document.getElementById("start-screen");
+    const startButton = document.getElementById("start-button");
+    const difficultySelectorStart = document.getElementById("difficulty-selector-start");
+    const backButton = document.getElementById("back-button");
+
+    const gameTitle = document.getElementById("game-title");
+    const questionElement = document.getElementById("question");
+    const container = document.getElementById("card-container");
+    const scoreElement = document.getElementById("score");
+    const timerBarElement = document.getElementById("timer-bar");
+    const livesDisplay = document.getElementById("lives-display");
+
+    const gameOverScreen = document.getElementById("game-over-screen"); // New: Game Over screen element
+    const finalScoreDisplay = document.getElementById("final-score"); // New: Final score display element
+    const gameOverMenuButton = document.getElementById("game-over-menu-button"); // New: Game Over menu button
+
+    // Game state variables
+    let correctAnswer = 0;
+    let score = 0;
+    let lives = 3;
+    let timeoutId;
+    let currentDifficulty = difficultySelectorStart.value;
+    let correctSound, wrongSound;
+    const timerDuration = 3000;
+
+    // Function to play sound feedback
+    function playSound(isCorrect) {
+      if (Tone.context.state !== 'running') {
+        Tone.start();
+      }
+      if (isCorrect) {
+        correctSound.triggerAttackRelease("C5", "8n");
+      } else {
+        wrongSound.triggerAttackRelease("F4", "8n");
+      }
+    }
+
+    // Function to update the lives display
+    function updateLivesDisplay() {
+      livesDisplay.innerText = '💚'.repeat(lives);
+    }
+
+    // Function to generate a new math question based on difficulty
+    function generateQuestion() {
+      clearTimeout(timeoutId);
+      container.innerHTML = "";
+
+      let a, b, operator, questionText;
+      let maxNum, minNum = 1;
+
+      switch (currentDifficulty) {
+        case "easy":
+          maxNum = 10;
+          operator = "+"; // Hanya penambahan
+          break;
+        case "medium":
+          maxNum = 20;
+          operator = Math.random() < 0.5 ? "+" : "-"; // Penambahan atau pengurangan
+          break;
+        case "hard":
+          maxNum = 12; // Untuk perkalian/pembagian angka tidak terlalu besar
+          // Termasuk operator pembagian sekarang!
+          const operators = ["+", "-", "*", "/"];
+          operator = operators[Math.floor(Math.random() * operators.length)];
+          break;
+      }
+
+      if (operator === "*") {
+        a = Math.floor(Math.random() * maxNum) + minNum;
+        b = Math.floor(Math.random() * maxNum) + minNum;
+      } else if (operator === "/") {
+        // Untuk pembagian, pastikan hasilnya bilangan bulat
+        // Jadi, kita mulai dengan hasil (res) dan pembagi (b), lalu hitung a = res * b
+        let res = Math.floor(Math.random() * (maxNum - minNum + 1)) + minNum;
+        b = Math.floor(Math.random() * (maxNum - minNum + 1)) + minNum;
+        if (b === 0) b = 1; // Hindari pembagian dengan nol
+        a = res * b;
+        // Opsional: Batasi `a` agar tidak terlalu besar jika `maxNum` kecil dan `res*b` jadi besar
+        if (a > (maxNum * maxNum)) { // Contoh batasan, bisa disesuaikan
+             a = Math.floor(Math.random() * maxNum) + minNum;
+             b = Math.floor(Math.random() * maxNum) + minNum;
+             if (b === 0) b = 1;
+             a = a * b; // Try again for a smaller 'a'
+        }
+      } else { // Penambahan atau pengurangan
+        a = Math.floor(Math.random() * (maxNum - minNum + 1)) + minNum;
+        b = Math.floor(Math.random() * (maxNum - minNum + 1)) + minNum;
+        if (operator === "-" && a < b) {
+          [a, b] = [b, a]; // Pastikan a lebih besar dari b untuk pengurangan positif
+        }
+      }
+
+      switch (operator) {
+        case "+":
+          correctAnswer = a + b;
+          break;
+        case "-":
+          correctAnswer = a - b;
+          break;
+        case "*":
+          correctAnswer = a * b;
+          break;
+        case "/":
+          correctAnswer = a / b;
+          break;
+      }
+
+      questionText = `${a} ${operator} ${b} = ?`;
+      questionElement.innerText = questionText;
+      createCard();
+      startTimerBar();
+    }
+
+    // Function to start the visual timer bar animation
+    function startTimerBar() {
+      timerBarElement.style.transition = 'none';
+      timerBarElement.style.width = '100%';
+
+      setTimeout(() => {
+        timerBarElement.style.transition = `width ${timerDuration / 1000}s linear`;
+        timerBarElement.style.width = '0%';
+      }, 50);
+    }
+
+    // Function to create and manage the answer card
+    function createCard() {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const isCorrectOption = Math.random() > 0.5;
+      let displayedAnswer;
+
+      if (isCorrectOption) {
+        displayedAnswer = correctAnswer;
+      } else {
+        let offset = Math.floor(Math.random() * 5) + 1;
+        if (Math.random() < 0.5) offset *= -1;
+        displayedAnswer = correctAnswer + offset;
+
+        if (displayedAnswer === correctAnswer) { // Pastikan jawaban salah tidak sama dengan jawaban benar
+          displayedAnswer += (offset > 0 ? 1 : -1);
+        }
+        if (displayedAnswer < 0 && correctAnswer >= 0) { // Hindari jawaban negatif jika jawaban benar positif
+            displayedAnswer = correctAnswer + Math.abs(offset);
+        }
+      }
+
+      card.innerText = displayedAnswer;
+
+      let offsetX = 0;
+      let startX;
+      let swiped = false;
+
+      card.addEventListener("touchstart", (e) => {
+        startX = e.touches[0].clientX;
+        card.style.transition = "none";
+      });
+
+      card.addEventListener("touchmove", (e) => {
+        offsetX = e.touches[0].clientX - startX;
+        card.style.transform = `translate(-50%, -50%) translateX(${offsetX}px) rotate(${offsetX / 15}deg)`;
+      });
+
+      card.addEventListener("touchend", () => {
+        card.style.transition = "transform 0.3s ease, opacity 0.3s ease";
+
+        timerBarElement.style.transition = 'none';
+        timerBarElement.style.width = '100%';
+
+        if (offsetX > 100) { // Swipe Right
+          if (displayedAnswer === correctAnswer) {
+            score++;
+            flashBackground(true);
+            playSound(true);
+            card.style.transform = `translate(-50%, -50%) translateX(400px) rotate(30deg)`;
+            card.style.opacity = "0";
+            setTimeout(nextQuestion, 300);
+          } else {
+            lives--;
+            updateLivesDisplay();
+            flashBackground(false);
+            playSound(false);
+            card.classList.add('wrong-anim');
+            setTimeout(() => {
+                card.style.transform = `translate(-50%, -50%) translateX(400px) rotate(30deg)`;
+                card.style.opacity = "0";
+                if (lives <= 0) {
+                    gameOver();
+                } else {
+                    setTimeout(nextQuestion, 300);
+                }
+            }, 400);
+          }
+          swiped = true;
+        } else if (offsetX < -100) { // Swipe Left
+          if (displayedAnswer !== correctAnswer) {
+            score++;
+            flashBackground(true);
+            playSound(true);
+            card.style.transform = `translate(-50%, -50%) translateX(-400px) rotate(-30deg)`;
+            card.style.opacity = "0";
+            setTimeout(nextQuestion, 300);
+          } else {
+            lives--;
+            updateLivesDisplay();
+            flashBackground(false);
+            playSound(false);
+            card.classList.add('wrong-anim');
+            setTimeout(() => {
+                card.style.transform = `translate(-50%, -50%) translateX(-400px) rotate(-30deg)`;
+                card.style.opacity = "0";
+                if (lives <= 0) {
+                    gameOver();
+                } else {
+                    setTimeout(nextQuestion, 300);
+                }
+            }, 400);
+          }
+          swiped = true;
+        } else {
+          card.style.transform = `translate(-50%, -50%)`; // Kembali ke posisi semula
+        }
+      });
+
+      container.appendChild(card);
+
+      timeoutId = setTimeout(() => {
+        if (!swiped) { // Jika kartu tidak digeser sebelum waktu habis
+          lives--;
+          updateLivesDisplay();
+          flashBackground(false);
+          playSound(false);
+          card.classList.add('wrong-anim');
+          setTimeout(() => {
+              card.style.transition = "opacity 0.3s ease";
+              card.style.opacity = "0";
+              if (lives <= 0) {
+                  gameOver();
+              } else {
+                  setTimeout(nextQuestion, 300);
+              }
+          }, 400);
+        }
+      }, timerDuration);
+    }
+
+    // Function to flash the background color and scale the question text
+    function flashBackground(isCorrect) {
+      document.body.classList.add(isCorrect ? "correct" : "wrong");
+      if (isCorrect) {
+        questionElement.style.transform = 'scale(1.1)';
+      }
+      setTimeout(() => {
+        document.body.classList.remove("correct", "wrong");
+        questionElement.style.transform = 'scale(1)';
+      }, 400);
+    }
+
+    // Function to advance to the next question
+    function nextQuestion() {
+      clearTimeout(timeoutId);
+      scoreElement.innerText = `Skor: ${score}`;
+      generateQuestion();
+    }
+
+    // Game Over sequence
+    function gameOver() {
+        clearTimeout(timeoutId); // Stop any active timer
+        hideGameElements(); // Hide all game elements
+        gameOverScreen.classList.remove("hidden"); // Show Game Over screen
+        finalScoreDisplay.innerText = `Skor Akhir: ${score}`; // Display final score
+    }
+
+    // Function to hide game elements
+    function hideGameElements() {
+        gameTitle.classList.add("hidden");
+        questionElement.classList.add("hidden");
+        container.classList.add("hidden");
+        scoreElement.classList.add("hidden");
+        timerBarElement.parentElement.classList.add("hidden");
+        backButton.classList.add("hidden");
+        livesDisplay.classList.add("hidden");
+    }
+
+    // Function to show game elements
+    function showGameElements() {
+        gameTitle.classList.remove("hidden");
+        questionElement.classList.remove("hidden");
+        container.classList.remove("hidden");
+        scoreElement.classList.remove("hidden");
+        timerBarElement.parentElement.classList.remove("hidden");
+        backButton.classList.remove("hidden");
+        livesDisplay.classList.remove("hidden");
+    }
+
+    // Event listener for difficulty change on the start screen
+    difficultySelectorStart.addEventListener("change", (e) => {
+      currentDifficulty = e.target.value;
+    });
+
+    // Event listener for the Start Game button
+    startButton.addEventListener("click", () => {
+      correctSound = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 },
+      }).toDestination();
+
+      wrongSound = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 },
+      }).toDestination();
+
+      Tone.start();
+
+      startScreen.classList.add("hidden");
+      showGameElements();
+
+      score = 0;
+      lives = 3;
+      updateLivesDisplay();
+      generateQuestion();
+    });
+
+    // Event listener for the Back to Menu button (during game)
+    backButton.addEventListener("click", () => {
+        clearTimeout(timeoutId);
+        hideGameElements();
+        startScreen.classList.remove("hidden");
+        score = 0; // Reset score
+        lives = 3; // Reset lives
+        scoreElement.innerText = `Skor: ${score}`;
+        updateLivesDisplay();
+        timerBarElement.style.transition = 'none';
+        timerBarElement.style.width = '100%';
+        container.innerHTML = "";
+    });
+
+    // Event listener for the "Kembali ke Menu" button on Game Over screen
+    gameOverMenuButton.addEventListener("click", () => {
+        gameOverScreen.classList.add("hidden"); // Hide game over screen
+        startScreen.classList.remove("hidden"); // Show start screen
+        // Reset game state for next play
+        score = 0;
+        lives = 3;
+        scoreElement.innerText = `Skor: ${score}`;
+        updateLivesDisplay();
+        timerBarElement.style.transition = 'none';
+        timerBarElement.style.width = '100%';
+        container.innerHTML = "";
+    });
+  </script>
+</body>
+</html>
